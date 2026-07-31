@@ -28,10 +28,11 @@
 
 from __future__ import annotations
 
+import csv
 import os
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -93,6 +94,17 @@ class Diagnostics:
     energy_relative_drift: float
     angular_momentum_initial: float
     angular_momentum_absolute_drift: float
+
+
+@dataclass
+class OutcomeAnalysis:
+    """Physical summary used for the research log and future statistics."""
+
+    closest_pair: str
+    minimum_separation: float
+    closest_approach_time: float
+    final_bound_pair: str
+    final_pair_relative_energy: float
 
 
 def random_initial_conditions(seed: Optional[int] = None) -> Simulation:
@@ -177,6 +189,83 @@ def diagnostics(solution: Solution, simulation: Simulation) -> Diagnostics:
         angular_momentum_initial=float(angular_momentum[0]),
         angular_momentum_absolute_drift=float(np.max(np.abs(angular_momentum - angular_momentum[0]))),
     )
+
+
+def analyse_outcome(solution: Solution, simulation: Simulation) -> OutcomeAnalysis:
+    """Extract simple, reproducible descriptors from one completed run.
+
+    A negative relative two-body energy at the final saved state marks a
+    *bound-pair candidate*.  It is intentionally described as a candidate:
+    a finite-duration three-body integration cannot prove that the pair will
+    remain bound forever.
+    """
+    positions = solution.positions
+    velocities = solution.velocities
+    masses = simulation.masses
+    pairs = [(i, j) for i in range(len(masses)) for j in range(i + 1, len(masses))]
+
+    closest_pair = ""
+    minimum_separation = np.inf
+    closest_frame = 0
+    relative_energies: list[tuple[float, tuple[int, int]]] = []
+    for i, j in pairs:
+        separations = np.linalg.norm(positions[:, j] - positions[:, i], axis=1)
+        frame = int(np.argmin(separations))
+        if separations[frame] < minimum_separation:
+            minimum_separation = float(separations[frame])
+            closest_pair = f"m{i + 1}-m{j + 1}"
+            closest_frame = frame
+
+        reduced_mass = masses[i] * masses[j] / (masses[i] + masses[j])
+        relative_speed_sq = float(np.sum((velocities[-1, i] - velocities[-1, j]) ** 2))
+        final_distance = float(np.linalg.norm(positions[-1, j] - positions[-1, i]))
+        relative_energy = 0.5 * reduced_mass * relative_speed_sq - G * masses[i] * masses[j] / final_distance
+        relative_energies.append((relative_energy, (i, j)))
+
+    final_energy, (i, j) = min(relative_energies, key=lambda item: item[0])
+    final_pair = f"m{i + 1}-m{j + 1}" if final_energy < 0 else "none"
+    time_per_frame = simulation.duration / (len(positions) - 1)
+    return OutcomeAnalysis(
+        closest_pair=closest_pair,
+        minimum_separation=minimum_separation,
+        closest_approach_time=closest_frame * time_per_frame,
+        final_bound_pair=final_pair,
+        final_pair_relative_energy=float(final_energy),
+    )
+
+
+def record_simulation(simulation: Simulation, report: Diagnostics, outcome: OutcomeAnalysis) -> Path:
+    """Append one reproducible observation to the local long-term CSV dataset."""
+    destination = application_directory() / "simulation_records.csv"
+    momenta = simulation.masses[:, np.newaxis] * simulation.velocities
+    row = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "seed": simulation.seed,
+        "method": "velocity-Verlet",
+        "duration": simulation.duration,
+        "time_step": simulation.time_step,
+        "m1": simulation.masses[0], "m2": simulation.masses[1], "m3": simulation.masses[2],
+        "r1_x": simulation.positions[0, 0], "r1_y": simulation.positions[0, 1],
+        "r2_x": simulation.positions[1, 0], "r2_y": simulation.positions[1, 1],
+        "r3_x": simulation.positions[2, 0], "r3_y": simulation.positions[2, 1],
+        "p1_x": momenta[0, 0], "p1_y": momenta[0, 1],
+        "p2_x": momenta[1, 0], "p2_y": momenta[1, 1],
+        "p3_x": momenta[2, 0], "p3_y": momenta[2, 1],
+        "closest_pair": outcome.closest_pair,
+        "minimum_separation": outcome.minimum_separation,
+        "closest_approach_time": outcome.closest_approach_time,
+        "final_bound_pair_candidate": outcome.final_bound_pair,
+        "final_pair_relative_energy": outcome.final_pair_relative_energy,
+        "energy_relative_drift": report.energy_relative_drift,
+        "angular_momentum_absolute_drift": report.angular_momentum_absolute_drift,
+    }
+    write_header = not destination.exists()
+    with destination.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=row.keys())
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
+    return destination
 
 
 def render(solution: Solution, simulation: Simulation, destination: Path) -> Path:
@@ -330,12 +419,14 @@ def build_caption(simulation: Simulation, report: Diagnostics) -> str:
     return (f"<b>Torsivane Lab</b> · {datetime.now():%d.%m.%Y}\n"
             f"<pre>{mass_text}\n"
             f"{momentum_lines}\n\n"
-            f"seed           = {simulation.seed}\n"
-            f"method         = velocity-Verlet\n"
-            f"Δt             = {simulation.time_step:g}\n"
-            f"T              = {simulation.duration:g}\n"
-            f"max |ΔE/E₀|    = {report.energy_relative_drift:.2e}\n"
-            f"max |ΔL|       = {report.angular_momentum_absolute_drift:.2e}</pre>")
+            f"integration\n"
+            f"  seed         = {simulation.seed}\n"
+            f"  method       = velocity-Verlet\n"
+            f"  step Δt      = {simulation.time_step:g}\n"
+            f"  window T     = {simulation.duration:g}\n"
+            f"numerical check\n"
+            f"  max |ΔE/E₀| = {report.energy_relative_drift:.2e}\n"
+            f"  max |ΔL|    = {report.angular_momentum_absolute_drift:.2e}</pre>")
 
 
 def validate_two_body_orbit() -> Diagnostics:
@@ -364,8 +455,11 @@ def compact_main() -> None:
     output = application_directory() / "daily_three_body.mp4"
     compact_render(trajectory, simulation, output)
     report = diagnostics(trajectory, simulation)
+    outcome = analyse_outcome(trajectory, simulation)
+    record_path = record_simulation(simulation, report, outcome)
     publish_to_telegram(output, build_caption(simulation, report))
     print(f"Done: {output.resolve()}")
+    print(f"Recorded: {record_path.resolve()}")
     print(f"max relative energy drift = {report.energy_relative_drift:.2e}")
     print(f"max angular-momentum drift = {report.angular_momentum_absolute_drift:.2e}")
 

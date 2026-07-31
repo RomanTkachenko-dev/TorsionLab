@@ -125,6 +125,25 @@ These values are diagnostics of the **numerical integration**, not corrections a
 
 Each publication also records its random **seed**, integration method, timestep, and duration. Re-run the simulation by passing that seed to `random_initial_conditions(seed=...)`.
 
+### Reading the Telegram caption
+
+The compact caption keeps the quantities required to reproduce and audit one run:
+
+- **step Δt** is the integrator timestep. Smaller values normally improve numerical accuracy but require more calculations.
+- **window T** is the total simulated duration. It is a fixed observation window, not the time of a detected event.
+- **max |ΔE/E₀|** is the largest relative change in total energy over the saved states. It is a numerical-accuracy diagnostic.
+- **max |ΔL|** is the largest absolute change in planar angular momentum. It is another numerical-accuracy diagnostic.
+
+These quantities are worth keeping because they distinguish a physical feature of the run from a possible integration artefact. The caption groups them under **numerical check** rather than presenting them as physical outcomes.
+
+## Long-term dataset
+
+Every completed run appends one row to `simulation_records.csv` beside the script or packaged EXE. The file is deliberately local and is excluded from Git.
+
+Each row includes the UTC timestamp, seed, masses, initial positions and momenta, integration settings, closest pair, minimum separation and its time, final bound-pair candidate, and conservation diagnostics. This turns the daily post into a reproducible observation in a longer computational experiment.
+
+The final bound-pair field is a **candidate**, determined from negative relative two-body energy at the final saved state. It does not claim permanent stability beyond the finite simulation window.
+
 ## Two-body validation
 
 The script includes a known circular orbit for two equal point masses. It uses a separation of one normalized distance unit and the corresponding circular speed $v=\sqrt{1/2}$. Run the validation without generating or posting a GIF:
