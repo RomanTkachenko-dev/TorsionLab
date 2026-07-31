@@ -37,8 +37,8 @@ jobs:
       # running the script so the new row is appended to the existing dataset.
       - name: Restore the previous dataset
         run: |
-          git fetch origin data || true
-          if git cat-file -e origin/data:simulation_records.csv 2>/dev/null; then
+          if git ls-remote --exit-code --heads origin data >/dev/null; then
+            git fetch origin data:refs/remotes/origin/data
             git show origin/data:simulation_records.csv > simulation_records.csv
           fi
 
@@ -52,25 +52,22 @@ jobs:
       # intentionally not committed, because Telegram is the publication target.
       - name: Append the observation to the data branch
         run: |
-          data_dir="$RUNNER_TEMP/torsionlab-data"
+          records_path="$RUNNER_TEMP/simulation_records.csv"
+          cp simulation_records.csv "$records_path"
           git config user.name "torsionlab-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          if git show-ref --verify --quiet refs/remotes/origin/data; then
-            git worktree add "$data_dir" origin/data
+          if git ls-remote --exit-code --heads origin data >/dev/null; then
+            git fetch origin data:refs/remotes/origin/data
+            git switch --track -c data origin/data
           else
-            git worktree add --detach "$data_dir"
-            (
-              cd "$data_dir"
-              git switch --orphan data
-              git rm -rf .
-            )
+            git switch --orphan data
+            # An orphan branch has no tracked files, so this may legitimately
+            # have nothing to remove on the first run.
+            git rm -rf . || true
           fi
 
-          cp simulation_records.csv "$data_dir/simulation_records.csv"
-          (
-            cd "$data_dir"
-            git add simulation_records.csv
-            git commit -m "Record daily simulation $(date -u +%F)"
-            git push origin HEAD:data
-          )
+          cp "$records_path" simulation_records.csv
+          git add simulation_records.csv
+          git commit -m "Record daily simulation $(date -u +%F)"
+          git push origin HEAD:data
