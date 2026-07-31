@@ -25,7 +25,7 @@ G\frac{m_i m_j}{\left|\mathbf r_j-\mathbf r_i\right|^3}
 (\mathbf r_j-\mathbf r_i).
 $$
 
-Newton's second law, $m_i\ddot{\mathbf r}_i=\sum_j\mathbf F_{ij}$, produces the acceleration equation. The project uses normalized units with $G=1$, so the animation does not claim SI units such as kilograms or metres.
+Newton's second law, $m_i \ddot{\mathbf{r}}_i = \sum_j \mathbf{F}_{ij}$, produces the acceleration equation. The project uses normalized units with $G=1$, so the animation does not claim SI units such as kilograms or metres.
 
 ### Newton's laws in the model
 
