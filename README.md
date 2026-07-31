@@ -240,7 +240,7 @@ Set the project directory as the working directory. The process runs only while 
 
 ## Daily automation with GitHub Actions
 
-The repository includes `.github/workflows/daily-simulation.yml`, which can run the same simulation in GitHub's cloud and publish it even while the local computer is off. It runs every 30 minutes in the `Europe/Kyiv` timezone and also has a manual **Run workflow** button in the repository's **Actions** tab.
+The repository includes `.github/workflows/daily-simulation.yml`, which can run the same simulation in GitHub's cloud and publish it even while the local computer is off. It runs every 30 minutes and also has a manual **Run workflow** button in the repository's **Actions** tab.
 
 Before enabling it, open the repository on GitHub and add these two repository secrets under **Settings → Secrets and variables → Actions → New repository secret**:
 
@@ -253,7 +253,7 @@ The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hoste
 
 GitHub-hosted machines are discarded after each run. To retain the scientific dataset, the workflow restores `simulation_records.csv` from the separate `data` branch, appends the new observation, then commits only that CSV back to `data`. The MP4 remains a Telegram publication and is not stored in Git.
 
-The workflow declares the `Europe/Kyiv` IANA timezone, so the schedule remains local through seasonal clock changes.
+The `*/30 * * * *` cron expression starts at minutes `:00` and `:30` of every hour. Because it is an interval rather than a fixed local time, seasonal clock changes do not affect the cadence.
 
 ## Windows desktop launcher
 
