@@ -192,9 +192,9 @@ def render(solution: Solution, simulation: Simulation, destination: Path) -> Pat
     details = fig.add_subplot(grid[1])
     ax.set_facecolor("#ffffff")
     ax.set(xlim=(-limit, limit), ylim=(-limit, limit), aspect="equal")
-    ax.set_xlabel("x  [нормовані одиниці]")
-    ax.set_ylabel("y  [нормовані одиниці]")
-    ax.grid(True, color="#d7dde3", linewidth=0.7)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True, color="#aeb7c2", linewidth=0.9, alpha=0.85)
     fig.suptitle("Ньютонівська задача трьох тіл", y=0.975, fontsize=15, fontweight="bold")
     fig.text(0.5, 0.942, "чисельне інтегрування: velocity-Verlet", ha="center",
              fontsize=8.5, color="#495057")
@@ -278,14 +278,21 @@ def compact_render(solution: Solution, simulation: Simulation, destination: Path
     fig.subplots_adjust(left=0.12, right=0.96, top=0.965, bottom=0.11)
     ax.set_facecolor("#ffffff")
     ax.set(xlim=(-limit, limit), ylim=(-limit, limit), aspect="equal")
-    ax.set_xlabel("x  [нормовані одиниці]")
-    ax.set_ylabel("y  [нормовані одиниці]")
-    ax.grid(True, color="#d7dde3", linewidth=0.7)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True, color="#aeb7c2", linewidth=0.9, alpha=0.85)
     for spine in ax.spines.values():
         spine.set_color("#495057")
+    # Crosses remain fixed at the launch points.  The two trail layers show the
+    # complete history faintly while keeping the most recent motion prominent.
+    start_markers = [ax.plot(
+        [trajectory[0, body, 0]], [trajectory[0, body, 1]],
+        marker="x", color=color, ms=8, mew=1.5, alpha=0.95, linestyle="None",
+    )[0] for body, color in enumerate(colors)]
+    full_trails = [ax.plot([], [], "-", color=color, lw=0.9, alpha=0.28)[0] for color in colors]
+    recent_trails = [ax.plot([], [], "-", color=color, lw=1.7, alpha=0.95)[0] for color in colors]
     points = [ax.plot([], [], "o", color=color, ms=7 + 5 * mass)[0]
               for color, mass in zip(colors, simulation.masses)]
-    trails = [ax.plot([], [], "-", color=color, lw=1.25, alpha=0.75)[0] for color in colors]
     time_label = ax.text(0.02, 0.03, "", transform=ax.transAxes, fontsize=10,
                          bbox={"boxstyle": "round,pad=0.35", "facecolor": "white", "edgecolor": "#adb5bd"})
 
@@ -293,9 +300,10 @@ def compact_render(solution: Solution, simulation: Simulation, destination: Path
         start = max(0, frame - 100)
         for body in range(3):
             points[body].set_data([trajectory[frame, body, 0]], [trajectory[frame, body, 1]])
-            trails[body].set_data(trajectory[start:frame + 1, body, 0], trajectory[start:frame + 1, body, 1])
+            full_trails[body].set_data(trajectory[:frame + 1, body, 0], trajectory[:frame + 1, body, 1])
+            recent_trails[body].set_data(trajectory[start:frame + 1, body, 0], trajectory[start:frame + 1, body, 1])
         time_label.set_text(f"t = {frame * simulation.duration / (len(trajectory) - 1):.2f}")
-        return [*points, *trails, time_label]
+        return [*start_markers, *full_trails, *recent_trails, *points, time_label]
 
     animation = FuncAnimation(fig, update, frames=len(trajectory), interval=33, blit=True)
     writer = FFMpegWriter(
