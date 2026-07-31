@@ -4,7 +4,7 @@ on:
   schedule:
     # Every half hour. A timezone is unnecessary because :00 and :30 are the
     # same local clock minutes in every timezone.
-    - cron: "*/30 * * * *"
+    - cron: "0,30 * * * *"
   workflow_dispatch:
 
 # Lets this workflow write the cumulative dataset to the separate data branch.
