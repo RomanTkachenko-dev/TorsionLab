@@ -101,6 +101,40 @@ $$
 
 The integrator runs at the small timestep; only selected states are stored for rendering. The renderer does not alter the physical calculation.
 
+## Conservation diagnostics
+
+For every published three-body run, the program evaluates the saved states and reports two numerical diagnostics in the Telegram caption:
+
+- **Relative energy drift:** the largest sampled value of $|E(t)-E(0)|/|E(0)|$.
+- **Angular-momentum drift:** the largest sampled value of $|L_z(t)-L_z(0)|$.
+
+The total mechanical energy is calculated as
+
+$$
+E = \frac{1}{2}\sum_i m_i |\mathbf v_i|^2
+    - G\sum_{i<j}\frac{m_i m_j}{|\mathbf r_j-\mathbf r_i|},
+$$
+
+and the planar angular momentum is
+
+$$
+L_z = \sum_i m_i (x_i v_{y,i} - y_i v_{x,i}).
+$$
+
+These values are diagnostics of the **numerical integration**, not corrections applied to the simulation. Small drift is expected from finite timesteps; a large drift indicates that the timestep or initial conditions should be investigated.
+
+Each publication also records its random **seed**, integration method, timestep, and duration. Re-run the simulation by passing that seed to `random_initial_conditions(seed=...)`.
+
+## Two-body validation
+
+The script includes a known circular orbit for two equal point masses. It uses a separation of one normalized distance unit and the corresponding circular speed $v=\sqrt{1/2}$. Run the validation without generating or posting a GIF:
+
+~~~
+python main.py --validate
+~~~
+
+The command prints the maximum relative energy drift and absolute angular-momentum drift over approximately one orbit. This is a sanity check for the velocity-Verlet implementation; it is not a proof of accuracy for every chaotic three-body configuration.
+
 ## Close encounters and limitations
 
 The point-mass force is singular at zero separation. This project does **not** soften the force, merge bodies, or model collisions.
@@ -188,6 +222,7 @@ Set the project directory as the working directory. The process runs only while 
 | File | Purpose |
 | --- | --- |
 | **main.py** | Simulation, integration, rendering, and Telegram publishing |
+| **test_physics.py** | Regression test for the two-body validation orbit |
 | **requirements.txt** | Python dependencies |
 | **README.md** | Scientific and operational documentation |
 

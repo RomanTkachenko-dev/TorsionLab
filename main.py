@@ -29,6 +29,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -55,10 +56,32 @@ class Simulation:
     velocities: np.ndarray
     duration: float = 30.0
     time_step: float = 0.002
+    seed: Optional[int] = None
+
+
+@dataclass
+class Solution:
+    """States sampled from the integrator for rendering and diagnostics."""
+
+    positions: np.ndarray
+    velocities: np.ndarray
+
+
+@dataclass
+class Diagnostics:
+    """Conservation metrics evaluated at the saved integration states."""
+
+    energy_initial: float
+    energy_relative_drift: float
+    angular_momentum_initial: float
+    angular_momentum_absolute_drift: float
 
 
 def random_initial_conditions(seed: Optional[int] = None) -> Simulation:
     """Create a bounded, visually useful initial configuration."""
+    # Keep the actual seed with the simulation so a published run is reproducible.
+    if seed is None:
+        seed = int.from_bytes(os.urandom(8), "big")
     rng = np.random.default_rng(seed)
     masses = rng.uniform(0.6, 1.8, size=3)
     while True:
@@ -69,13 +92,15 @@ def random_initial_conditions(seed: Optional[int] = None) -> Simulation:
             break
     velocities = rng.normal(0, 0.45, size=(3, 2))
     velocities -= np.average(velocities, axis=0, weights=masses)
-    return Simulation(masses, positions, velocities)
+    return Simulation(masses, positions, velocities, seed=seed)
 
 
 def accelerations(positions: np.ndarray, masses: np.ndarray) -> np.ndarray:
+    """Return Newtonian gravitational acceleration for every body."""
     acceleration = np.zeros_like(positions)
-    for i in range(3):
-        for j in range(3):
+    body_count = len(masses)
+    for i in range(body_count):
+        for j in range(body_count):
             if i == j:
                 continue
             delta = positions[j] - positions[i]
@@ -86,14 +111,15 @@ def accelerations(positions: np.ndarray, masses: np.ndarray) -> np.ndarray:
     return acceleration
 
 
-def solve(simulation: Simulation, frames: int = 360) -> np.ndarray:
+def solve(simulation: Simulation, frames: int = 360) -> Solution:
     """Integrate with velocity-Verlet (a stable symplectic method)."""
     steps = round(simulation.duration / simulation.time_step)
     capture_every = max(1, steps // frames)
     positions = simulation.positions.copy()
     velocities = simulation.velocities.copy()
     acceleration = accelerations(positions, simulation.masses)
-    samples = [positions.copy()]
+    position_samples = [positions.copy()]
+    velocity_samples = [velocities.copy()]
 
     for step in range(steps):
         positions += velocities * simulation.time_step + 0.5 * acceleration * simulation.time_step**2
@@ -101,14 +127,45 @@ def solve(simulation: Simulation, frames: int = 360) -> np.ndarray:
         velocities += 0.5 * (acceleration + new_acceleration) * simulation.time_step
         acceleration = new_acceleration
         if step % capture_every == 0:
-            samples.append(positions.copy())
-    return np.asarray(samples)
+            position_samples.append(positions.copy())
+            velocity_samples.append(velocities.copy())
+    return Solution(np.asarray(position_samples), np.asarray(velocity_samples))
 
 
-def render(trajectory: np.ndarray, simulation: Simulation, destination: Path) -> Path:
+def diagnostics(solution: Solution, simulation: Simulation) -> Diagnostics:
+    """Measure conservation of total energy and z-angular momentum."""
+    positions = solution.positions
+    velocities = solution.velocities
+    masses = simulation.masses
+
+    kinetic = 0.5 * np.sum(masses[np.newaxis, :, np.newaxis] * velocities**2, axis=(1, 2))
+    potential = np.zeros(len(positions))
+    for i in range(len(masses)):
+        for j in range(i + 1, len(masses)):
+            separation = np.linalg.norm(positions[:, j] - positions[:, i], axis=1)
+            potential -= G * masses[i] * masses[j] / separation
+    total_energy = kinetic + potential
+
+    angular_momentum = np.sum(
+        masses[np.newaxis, :] * (positions[:, :, 0] * velocities[:, :, 1]
+                                 - positions[:, :, 1] * velocities[:, :, 0]),
+        axis=1,
+    )
+
+    energy_scale = max(abs(total_energy[0]), np.finfo(float).tiny)
+    return Diagnostics(
+        energy_initial=float(total_energy[0]),
+        energy_relative_drift=float(np.max(np.abs(total_energy - total_energy[0])) / energy_scale),
+        angular_momentum_initial=float(angular_momentum[0]),
+        angular_momentum_absolute_drift=float(np.max(np.abs(angular_momentum - angular_momentum[0]))),
+    )
+
+
+def render(solution: Solution, simulation: Simulation, destination: Path) -> Path:
     """Render a research-style animation with the governing equation and data."""
     masses = simulation.masses
     colors = ("#e76f51", "#2a9d8f", "#457b9d")
+    trajectory = solution.positions
     limit = max(2.0, float(np.abs(trajectory).max()) * 1.15)
     fig = plt.figure(figsize=(8, 8), facecolor="#f8f9fa")
     grid = fig.add_gridspec(2, 1, height_ratios=(6.3, 1.3), hspace=0.28,
@@ -188,8 +245,9 @@ def main() -> None:
     print(f"Done: {output.resolve()}")
 
 
-def compact_render(trajectory: np.ndarray, simulation: Simulation, destination: Path) -> Path:
+def compact_render(solution: Solution, simulation: Simulation, destination: Path) -> Path:
     """Render a clean, Telegram-friendly orbit visualization without text panels."""
+    trajectory = solution.positions
     colors = ("#e76f51", "#2a9d8f", "#457b9d")
     limit = max(2.0, float(np.abs(trajectory).max()) * 1.15)
     fig, ax = plt.subplots(figsize=(8, 8), dpi=140, facecolor="#f8f9fa")
@@ -221,7 +279,8 @@ def compact_render(trajectory: np.ndarray, simulation: Simulation, destination: 
     return destination
 
 
-def build_caption(simulation: Simulation) -> str:
+def build_caption(simulation: Simulation, report: Diagnostics) -> str:
+    """Build a reproducible, compact scientific record for the Telegram post."""
     masses = "  ".join(f"m{index}={mass:.3f}" for index, mass in enumerate(simulation.masses, start=1))
     momenta = simulation.masses[:, np.newaxis] * simulation.velocities
     momentum_text = "  ".join(
@@ -230,7 +289,24 @@ def build_caption(simulation: Simulation) -> str:
     )
     return (f"Torsivane Lab — {datetime.now():%d.%m.%Y}\n"
             f"Маси: {masses}\n"
-            f"Початкові імпульси: {momentum_text}")
+            f"Початкові імпульси: {momentum_text}\n"
+            f"seed={simulation.seed}; method=velocity-Verlet; Δt={simulation.time_step:g}; "
+            f"T={simulation.duration:g}\n"
+            f"max |ΔE/E₀|={report.energy_relative_drift:.2e}; "
+            f"max |ΔL|={report.angular_momentum_absolute_drift:.2e}")
+
+
+def validate_two_body_orbit() -> Diagnostics:
+    """Check a known circular two-body orbit and return conservation diagnostics."""
+    orbital_speed = np.sqrt(0.5)
+    simulation = Simulation(
+        masses=np.array([1.0, 1.0]),
+        positions=np.array([[-0.5, 0.0], [0.5, 0.0]]),
+        velocities=np.array([[0.0, -orbital_speed], [0.0, orbital_speed]]),
+        duration=2 * np.pi / np.sqrt(2),
+        time_step=0.002,
+    )
+    return diagnostics(solve(simulation), simulation)
 
 
 def compact_main() -> None:
@@ -245,9 +321,18 @@ def compact_main() -> None:
         raise RuntimeError("Unable to generate a system without a close encounter.")
     output = Path(__file__).resolve().parent / "daily_three_body.gif"
     compact_render(trajectory, simulation, output)
-    publish_to_telegram(output, build_caption(simulation))
+    report = diagnostics(trajectory, simulation)
+    publish_to_telegram(output, build_caption(simulation, report))
     print(f"Done: {output.resolve()}")
+    print(f"max relative energy drift = {report.energy_relative_drift:.2e}")
+    print(f"max angular-momentum drift = {report.angular_momentum_absolute_drift:.2e}")
 
 
 if __name__ == "__main__":
-    compact_main()
+    if "--validate" in sys.argv:
+        report = validate_two_body_orbit()
+        print("Two-body circular-orbit validation")
+        print(f"max relative energy drift = {report.energy_relative_drift:.2e}")
+        print(f"max angular-momentum drift = {report.angular_momentum_absolute_drift:.2e}")
+    else:
+        compact_main()
