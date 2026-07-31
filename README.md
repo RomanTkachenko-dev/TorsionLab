@@ -236,6 +236,23 @@ python main.py
 
 Set the project directory as the working directory. The process runs only while it generates and posts, then exits; it is not a permanently active background service.
 
+## Daily automation with GitHub Actions
+
+The repository includes `.github/workflows/daily-simulation.yml`, which can run the same simulation in GitHub's cloud and publish it even while the local computer is off. It runs every day at `10:00 UTC` (12:00 Kyiv time during summer time) and also has a manual **Run workflow** button in the repository's **Actions** tab.
+
+Before enabling it, open the repository on GitHub and add these two repository secrets under **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret name | Value |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | The current token issued by BotFather |
+| `TELEGRAM_CHANNEL_ID` | The public channel username, for example `@torsivanelab` |
+
+The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hosted Linux machine, runs `main.py`, and sends the generated MP4 directly to Telegram. The token is available only to the workflow while it runs and is never committed to the repository.
+
+GitHub-hosted machines are discarded after each run. To retain the scientific dataset, the workflow restores `simulation_records.csv` from the separate `data` branch, appends the new observation, then commits only that CSV back to `data`. The MP4 remains a Telegram publication and is not stored in Git.
+
+GitHub cron uses UTC. Kyiv changes between UTC+2 and UTC+3 over the year, so adjust the cron value from `0 10 * * *` to `0 11 * * *` when you want to keep an exact 12:00 local publication time after the seasonal clock change.
+
 ## Windows desktop launcher
 
 For a no-editor launch, build or use a packaged **TorsionLab.exe**. Double-clicking the EXE (or a Windows shortcut pointing to it) runs the same workflow as `python main.py`: it generates `daily_three_body.mp4` in the EXE folder and publishes it when Telegram environment variables are configured.

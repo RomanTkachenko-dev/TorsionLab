@@ -1,0 +1,76 @@
+name: Daily TorsionLab simulation
+
+on:
+  schedule:
+    # 10:00 UTC is 12:00 in Kyiv during summer time. Adjust this when Kyiv
+    # changes between EEST and EET, because cron schedules use UTC.
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+# Lets this workflow write the cumulative dataset to the separate data branch.
+permissions:
+  contents: write
+
+jobs:
+  simulate-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the simulation source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project and video dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      # GitHub-hosted runners are temporary. Restore the previous CSV before
+      # running the script so the new row is appended to the existing dataset.
+      - name: Restore the previous dataset
+        run: |
+          git fetch origin data || true
+          if git cat-file -e origin/data:simulation_records.csv 2>/dev/null; then
+            git show origin/data:simulation_records.csv > simulation_records.csv
+          fi
+
+      - name: Generate and publish the daily observation
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        run: python main.py
+
+      # Store only the cumulative dataset on a dedicated branch. The video is
+      # intentionally not committed, because Telegram is the publication target.
+      - name: Append the observation to the data branch
+        run: |
+          data_dir="$RUNNER_TEMP/torsionlab-data"
+          git config user.name "torsionlab-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git show-ref --verify --quiet refs/remotes/origin/data; then
+            git worktree add "$data_dir" origin/data
+          else
+            git worktree add --detach "$data_dir"
+            (
+              cd "$data_dir"
+              git switch --orphan data
+              git rm -rf .
+            )
+          fi
+
+          cp simulation_records.csv "$data_dir/simulation_records.csv"
+          (
+            cd "$data_dir"
+            git add simulation_records.csv
+            git commit -m "Record daily simulation $(date -u +%F)"
+            git push origin HEAD:data
+          )
