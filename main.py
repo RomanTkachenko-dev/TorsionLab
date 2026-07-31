@@ -1,3 +1,29 @@
+# =============================================================================
+# TorsionLab: quick reading guide
+#
+# This file has four responsibilities:
+#   1. Create a random Newtonian three-body system.
+#   2. Integrate its motion with the velocity-Verlet method.
+#   3. Render the sampled positions as a GIF animation.
+#   4. Optionally post that GIF to a Telegram channel.
+#
+# Suggested order for a first read:
+#   Simulation              — groups the input data for one experiment.
+#   random_initial_conditions — chooses masses, positions, and velocities.
+#   accelerations           — implements Newtonian gravity.
+#   solve                   — advances the system through time.
+#   compact_render          — creates the Telegram-friendly GIF.
+#   build_caption           — formats masses and initial momenta for Telegram.
+#   compact_main            — the active high-level workflow.
+#
+# Important conventions:
+#   * G = 1 uses normalized units rather than SI units.
+#   * Bodies are point masses; collisions and mergers are not modelled.
+#   * A close encounter aborts that random attempt before the force singularity.
+#   * Lines ending in `_main` coordinate work; the active entry point is
+#     the compact_main() call at the bottom of the file.
+# =============================================================================
+
 """Generate a daily three-body animation and optionally post it to Telegram."""
 
 from __future__ import annotations
