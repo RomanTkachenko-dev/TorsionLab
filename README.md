@@ -27,9 +27,9 @@ $$
 
 Newton's second law is:
 
-$
-m_i \ddot{\mathbf{r}}_i = \sum_j \mathbf{F}_{ij}
-$
+$$
+m_i \frac{d^2 \mathbf r_i}{dt^2} = \sum_j \mathbf F_{ij}
+$$
 
 This relation produces the acceleration equation. The project uses normalized units with $G=1$, so the animation does not claim SI units such as kilograms or metres.
 
