@@ -465,7 +465,7 @@ def build_caption(simulation: Simulation, report: Diagnostics, outcome: OutcomeA
             f"<pre>{mass_text}\n"
             f"{momentum_lines}\n\n"
             f"integration\n"
-            f"  seed         = {simulation.seed}\n"
+            f"  seed = {simulation.seed}\n"
             f"  method       = velocity-Verlet\n"
             f"  step Δt      = {simulation.time_step:g}\n"
             f"  window T     = {simulation.duration:g}\n"
