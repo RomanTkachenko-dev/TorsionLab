@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,6 +45,7 @@ from matplotlib.animation import FFMpegWriter, FuncAnimation, PillowWriter
 
 G = 1.0
 COLLISION_TOLERANCE = 0.02
+KYIV_TIMEZONE = ZoneInfo("Europe/Kyiv")
 
 
 def application_directory() -> Path:
@@ -461,7 +463,7 @@ def build_caption(simulation: Simulation, report: Diagnostics, outcome: OutcomeA
         f"p{index} = ({momentum[0]:+.3f}, {momentum[1]:+.3f})"
         for index, momentum in enumerate(momenta, start=1)
     )
-    return (f"<b>Torsivane Lab</b> · {datetime.now():%d.%m.%Y}\n"
+    return (f"<b>Torsivane Lab</b> · {datetime.now(KYIV_TIMEZONE):%d.%m.%Y · %H:%M}\n"
             f"<pre>{mass_text}\n"
             f"{momentum_lines}\n\n"
             f"integration\n"

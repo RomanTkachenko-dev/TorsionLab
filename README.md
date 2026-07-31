@@ -1,8 +1,8 @@
 # TorsionLab — Newtonian Three-Body Simulation
 
-[![Daily TorsionLab simulation](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml/badge.svg)](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml)
+[![TorsionLab workflow status](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml/badge.svg)](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml)
 
-TorsionLab generates a daily 1080×1080 H.264 MP4 animation of three mutually gravitating bodies and can publish it to a Telegram channel. Each run creates random planar initial conditions, integrates the equations of motion, renders trajectories, and optionally sends the animation through the Telegram Bot API.
+TorsionLab generates a 1080×1080 H.264 MP4 animation of three mutually gravitating bodies and can publish it to a Telegram channel. Each run creates random planar initial conditions, integrates the equations of motion, renders trajectories, analyses selected finite-window outcomes, and optionally sends the animation through the Telegram Bot API.
 
 The project is a transparent numerical experiment in **classical Newtonian gravity**, not an orbital prediction service.
 
@@ -125,12 +125,15 @@ $$
 
 These values are diagnostics of the **numerical integration**, not corrections applied to the simulation. Small drift is expected from finite timesteps; a large drift indicates that the timestep or initial conditions should be investigated.
 
-Each publication also records its random **seed**, integration method, timestep, and duration. Re-run the simulation by passing that seed to `random_initial_conditions(seed=...)`.
+Each publication records its random **seed**, integration method, timestep, duration, and a `Europe/Kyiv` publication timestamp. Re-run the simulation by passing that seed to `random_initial_conditions(seed=...)`.
 
 ### Reading the Telegram caption
 
 The compact caption keeps the quantities required to reproduce and audit one run:
 
+- The header gives the **date and local Kyiv publication time**.
+- **seed** is the full reproducibility identifier, formatted as one compact line.
+- **closest pass**, **bound pair**, and **escape cand.** are finite-window descriptors from the trajectory, not permanent predictions.
 - **step Δt** is the integrator timestep. Smaller values normally improve numerical accuracy but require more calculations.
 - **window T** is the total simulated duration. It is a fixed observation window, not the time of a detected event.
 - **max |ΔE/E₀|** is the largest relative change in total energy over the saved states. It is a numerical-accuracy diagnostic.
@@ -192,7 +195,7 @@ MP4 rendering with positions and recent trails
 Telegram sendAnimation request (when configured)
 ~~~
 
-The active entry point is **compact_main()** in **main.py**. It generates a valid system, saves **daily_three_body.mp4**, builds a scientific caption with masses, momenta, seed, and conservation diagnostics, and calls the Telegram publisher.
+The active entry point is **compact_main()** in **main.py**. It generates a valid system, saves **daily_three_body.mp4**, builds a scientific caption with local Kyiv time, masses, momenta, seed, trajectory outcome descriptors, and conservation diagnostics, then calls the Telegram publisher.
 
 ## Installation
 
@@ -249,7 +252,7 @@ Before enabling it, open the repository on GitHub and add these two repository s
 | `TELEGRAM_BOT_TOKEN` | The current token issued by BotFather |
 | `TELEGRAM_CHANNEL_ID` | The public channel username, for example `@torsivanelab` |
 
-The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hosted Linux machine, runs `main.py`, and sends the generated MP4 directly to Telegram. The token is available only to the workflow while it runs and is never committed to the repository.
+The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hosted Linux machine, runs `main.py`, and sends the generated MP4 directly to Telegram. The token is available only to the workflow while it runs and is never committed to the repository. A run started by the schedule appears as the `schedule` event in GitHub Actions; a user-started run appears as `workflow_dispatch`.
 
 GitHub-hosted machines are discarded after each run. To retain the scientific dataset, the workflow restores `simulation_records.csv` from the separate `data` branch, appends the new observation, then commits only that CSV back to `data`. The MP4 remains a Telegram publication and is not stored in Git.
 
