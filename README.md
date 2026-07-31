@@ -256,7 +256,7 @@ The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hoste
 
 GitHub-hosted machines are discarded after each run. To retain the scientific dataset, the workflow restores `simulation_records.csv` from the separate `data` branch, appends the new observation, then commits only that CSV back to `data`. The MP4 remains a Telegram publication and is not stored in Git.
 
-The `0,30 * * * *` cron expression starts at minutes `:00` and `:30` of every hour. Because it is an interval rather than a fixed local time, seasonal clock changes do not affect the cadence.
+The `7,37 * * * *` cron expression starts at minutes `:07` and `:37` of every hour. This keeps a 30-minute cadence while avoiding the top-of-hour load peak documented by GitHub. Because it is an interval rather than a fixed local time, seasonal clock changes do not affect the cadence.
 
 ## Windows desktop launcher
 

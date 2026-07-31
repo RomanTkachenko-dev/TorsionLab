@@ -2,9 +2,9 @@ name: Daily TorsionLab simulation
 
 on:
   schedule:
-    # Every half hour. A timezone is unnecessary because :00 and :30 are the
-    # same local clock minutes in every timezone.
-    - cron: "0,30 * * * *"
+    # Every half hour, offset from the start of an hour. GitHub documents that
+    # schedules at :00 may be delayed or dropped during periods of high load.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 # Lets this workflow write the cumulative dataset to the separate data branch.
