@@ -1,5 +1,7 @@
 # TorsionLab — Newtonian Three-Body Simulation
 
+[![Daily TorsionLab simulation](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml/badge.svg)](https://github.com/RomanTkachenko-dev/TorsionLab/actions/workflows/daily-simulation.yml)
+
 TorsionLab generates a daily 1080×1080 H.264 MP4 animation of three mutually gravitating bodies and can publish it to a Telegram channel. Each run creates random planar initial conditions, integrates the equations of motion, renders trajectories, and optionally sends the animation through the Telegram Bot API.
 
 The project is a transparent numerical experiment in **classical Newtonian gravity**, not an orbital prediction service.
