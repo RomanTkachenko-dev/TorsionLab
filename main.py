@@ -45,6 +45,24 @@ G = 1.0
 COLLISION_TOLERANCE = 0.02
 
 
+def application_directory() -> Path:
+    """Return the folder containing the script during development or the EXE after packaging."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def configure_bundled_ffmpeg() -> None:
+    """Tell Matplotlib where to find FFmpeg when this file runs as a packaged EXE."""
+    bundle_directory = Path(getattr(sys, "_MEIPASS", application_directory()))
+    bundled_ffmpeg = bundle_directory / "ffmpeg.exe"
+    if bundled_ffmpeg.is_file():
+        plt.rcParams["animation.ffmpeg_path"] = str(bundled_ffmpeg)
+
+
+configure_bundled_ffmpeg()
+
+
 class CloseEncounter(Exception):
     """Raised before the point-mass model reaches its singularity."""
 
@@ -241,7 +259,7 @@ def main() -> None:
             continue
     else:
         raise RuntimeError("Не вдалося згенерувати систему без близького зближення.")
-    output = Path(__file__).resolve().parent / "daily_three_body.gif"
+    output = application_directory() / "daily_three_body.gif"
     render(trajectory, simulation, output)
     mass_text = ", ".join(f"{mass:.2f}" for mass in simulation.masses)
     caption = (f"Ньютонівська задача трьох тіл — {datetime.now():%d.%m.%Y}\n"
@@ -335,7 +353,7 @@ def compact_main() -> None:
             continue
     else:
         raise RuntimeError("Unable to generate a system without a close encounter.")
-    output = Path(__file__).resolve().parent / "daily_three_body.mp4"
+    output = application_directory() / "daily_three_body.mp4"
     compact_render(trajectory, simulation, output)
     report = diagnostics(trajectory, simulation)
     publish_to_telegram(output, build_caption(simulation, report))

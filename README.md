@@ -217,6 +217,12 @@ python main.py
 
 Set the project directory as the working directory. The process runs only while it generates and posts, then exits; it is not a permanently active background service.
 
+## Windows desktop launcher
+
+For a no-editor launch, build or use a packaged **TorsionLab.exe**. Double-clicking the EXE (or a Windows shortcut pointing to it) runs the same workflow as `python main.py`: it generates `daily_three_body.mp4` in the EXE folder and publishes it when Telegram environment variables are configured.
+
+The packaged application includes its Python runtime and FFmpeg encoder, so Python and FFmpeg do not need to be installed on the computer that runs the EXE. The executable itself is intentionally not committed to this repository because it is a large platform-specific build artifact.
+
 ## Repository structure
 
 | File | Purpose |
