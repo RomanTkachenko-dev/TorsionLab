@@ -140,9 +140,9 @@ These quantities are worth keeping because they distinguish a physical feature o
 
 Every completed run appends one row to `simulation_records.csv` beside the script or packaged EXE. The file is deliberately local and is excluded from Git.
 
-Each row includes the UTC timestamp, seed, masses, initial positions and momenta, integration settings, closest pair, minimum separation and its time, final bound-pair candidate, and conservation diagnostics. This turns the daily post into a reproducible observation in a longer computational experiment.
+Each row includes the UTC timestamp, seed, masses, initial positions and momenta, integration settings, closest pair, minimum separation and its time, final bound-pair candidate, escape candidate, and conservation diagnostics. This turns the daily post into a reproducible observation in a longer computational experiment.
 
-The final bound-pair field is a **candidate**, determined from negative relative two-body energy at the final saved state. It does not claim permanent stability beyond the finite simulation window.
+The final bound-pair field is a **candidate**, determined from negative relative two-body energy at the final saved state. The escape-candidate field is reported only when the third body has positive pair-relative specific energy, is moving outward from the candidate pair's centre of mass, and is farther from that centre than the pair separation. Neither label claims permanent stability or ejection beyond the finite simulation window.
 
 ## Two-body validation
 
@@ -238,7 +238,7 @@ Set the project directory as the working directory. The process runs only while 
 
 ## Daily automation with GitHub Actions
 
-The repository includes `.github/workflows/daily-simulation.yml`, which can run the same simulation in GitHub's cloud and publish it even while the local computer is off. It runs every day at **12:00 Europe/Kyiv** and also has a manual **Run workflow** button in the repository's **Actions** tab.
+The repository includes `.github/workflows/daily-simulation.yml`, which can run the same simulation in GitHub's cloud and publish it even while the local computer is off. It runs every 30 minutes in the `Europe/Kyiv` timezone and also has a manual **Run workflow** button in the repository's **Actions** tab.
 
 Before enabling it, open the repository on GitHub and add these two repository secrets under **Settings → Secrets and variables → Actions → New repository secret**:
 
@@ -251,7 +251,7 @@ The workflow installs Python dependencies and FFmpeg on a temporary GitHub-hoste
 
 GitHub-hosted machines are discarded after each run. To retain the scientific dataset, the workflow restores `simulation_records.csv` from the separate `data` branch, appends the new observation, then commits only that CSV back to `data`. The MP4 remains a Telegram publication and is not stored in Git.
 
-The workflow declares the `Europe/Kyiv` IANA timezone, so GitHub keeps the intended 12:00 local schedule through seasonal clock changes.
+The workflow declares the `Europe/Kyiv` IANA timezone, so the schedule remains local through seasonal clock changes.
 
 ## Windows desktop launcher
 

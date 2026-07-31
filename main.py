@@ -105,6 +105,9 @@ class OutcomeAnalysis:
     closest_approach_time: float
     final_bound_pair: str
     final_pair_relative_energy: float
+    escape_candidate: str
+    escape_specific_energy: float
+    escape_radial_speed: float
 
 
 def random_initial_conditions(seed: Optional[int] = None) -> Simulation:
@@ -195,9 +198,10 @@ def analyse_outcome(solution: Solution, simulation: Simulation) -> OutcomeAnalys
     """Extract simple, reproducible descriptors from one completed run.
 
     A negative relative two-body energy at the final saved state marks a
-    *bound-pair candidate*.  It is intentionally described as a candidate:
-    a finite-duration three-body integration cannot prove that the pair will
-    remain bound forever.
+    *bound-pair candidate*. An *escape candidate* is the remaining body when
+    it is moving away from that pair, has positive pair-relative specific
+    energy, and lies farther from the pair's centre of mass than the pair is
+    from itself. These are finite-window descriptors, not permanent outcomes.
     """
     positions = solution.positions
     velocities = solution.velocities
@@ -224,6 +228,28 @@ def analyse_outcome(solution: Solution, simulation: Simulation) -> OutcomeAnalys
 
     final_energy, (i, j) = min(relative_energies, key=lambda item: item[0])
     final_pair = f"m{i + 1}-m{j + 1}" if final_energy < 0 else "none"
+    escape_candidate = "none"
+    escape_specific_energy = float("nan")
+    escape_radial_speed = float("nan")
+
+    if final_energy < 0:
+        escaping_index = next(index for index in range(len(masses))
+                              if index not in (i, j))
+        pair_mass = masses[i] + masses[j]
+        pair_position = (masses[i] * positions[-1, i] + masses[j] * positions[-1, j]) / pair_mass
+        pair_velocity = (masses[i] * velocities[-1, i] + masses[j] * velocities[-1, j]) / pair_mass
+        separation_vector = positions[-1, escaping_index] - pair_position
+        separation = float(np.linalg.norm(separation_vector))
+        relative_velocity = velocities[-1, escaping_index] - pair_velocity
+        escape_radial_speed = float(separation_vector @ relative_velocity / separation)
+        escape_specific_energy = (
+            0.5 * float(relative_velocity @ relative_velocity)
+            - G * (pair_mass + masses[escaping_index]) / separation
+        )
+        pair_separation = float(np.linalg.norm(positions[-1, j] - positions[-1, i]))
+        if (escape_specific_energy > 0 and escape_radial_speed > 0
+                and separation > pair_separation):
+            escape_candidate = f"m{escaping_index + 1}"
     time_per_frame = simulation.duration / (len(positions) - 1)
     return OutcomeAnalysis(
         closest_pair=closest_pair,
@@ -231,6 +257,9 @@ def analyse_outcome(solution: Solution, simulation: Simulation) -> OutcomeAnalys
         closest_approach_time=closest_frame * time_per_frame,
         final_bound_pair=final_pair,
         final_pair_relative_energy=float(final_energy),
+        escape_candidate=escape_candidate,
+        escape_specific_energy=escape_specific_energy,
+        escape_radial_speed=escape_radial_speed,
     )
 
 
@@ -256,13 +285,29 @@ def record_simulation(simulation: Simulation, report: Diagnostics, outcome: Outc
         "closest_approach_time": outcome.closest_approach_time,
         "final_bound_pair_candidate": outcome.final_bound_pair,
         "final_pair_relative_energy": outcome.final_pair_relative_energy,
+        "escape_candidate": outcome.escape_candidate,
+        "escape_specific_energy": outcome.escape_specific_energy,
+        "escape_radial_speed": outcome.escape_radial_speed,
         "energy_relative_drift": report.energy_relative_drift,
         "angular_momentum_absolute_drift": report.angular_momentum_absolute_drift,
     }
-    write_header = not destination.exists()
+    fieldnames = list(row)
+    if destination.exists():
+        with destination.open("r", newline="", encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            existing_rows = list(reader)
+            existing_fieldnames = reader.fieldnames or []
+        if existing_fieldnames != fieldnames:
+            with destination.open("w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()
+                for existing_row in existing_rows:
+                    writer.writerow({name: existing_row.get(name, "") for name in fieldnames})
+                writer.writerow(row)
+            return destination
     with destination.open("a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=row.keys())
-        if write_header:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if not destination.exists() or destination.stat().st_size == 0:
             writer.writeheader()
         writer.writerow(row)
     return destination
@@ -406,7 +451,7 @@ def compact_render(solution: Solution, simulation: Simulation, destination: Path
     return destination
 
 
-def build_caption(simulation: Simulation, report: Diagnostics) -> str:
+def build_caption(simulation: Simulation, report: Diagnostics, outcome: OutcomeAnalysis) -> str:
     """Build a reproducible, compact scientific record for the Telegram post."""
     momenta = simulation.masses[:, np.newaxis] * simulation.velocities
     mass_text = "  ".join(
@@ -424,6 +469,10 @@ def build_caption(simulation: Simulation, report: Diagnostics) -> str:
             f"  method       = velocity-Verlet\n"
             f"  step Δt      = {simulation.time_step:g}\n"
             f"  window T     = {simulation.duration:g}\n"
+            f"outcome (within T)\n"
+            f"  closest pass = {outcome.closest_pair}, r = {outcome.minimum_separation:.3f}, t = {outcome.closest_approach_time:.2f}\n"
+            f"  bound pair   = {outcome.final_bound_pair}\n"
+            f"  escape cand. = {outcome.escape_candidate}\n"
             f"numerical check\n"
             f"  max |ΔE/E₀| = {report.energy_relative_drift:.2e}\n"
             f"  max |ΔL|    = {report.angular_momentum_absolute_drift:.2e}</pre>")
@@ -457,7 +506,7 @@ def compact_main() -> None:
     report = diagnostics(trajectory, simulation)
     outcome = analyse_outcome(trajectory, simulation)
     record_path = record_simulation(simulation, report, outcome)
-    publish_to_telegram(output, build_caption(simulation, report))
+    publish_to_telegram(output, build_caption(simulation, report, outcome))
     print(f"Done: {output.resolve()}")
     print(f"Recorded: {record_path.resolve()}")
     print(f"max relative energy drift = {report.energy_relative_drift:.2e}")

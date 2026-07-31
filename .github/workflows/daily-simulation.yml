@@ -3,7 +3,7 @@ name: Daily TorsionLab simulation
 on:
   schedule:
     # The IANA timezone keeps the intended local time through seasonal changes.
-    - cron: "0 12 * * *"
+    - cron: "*/30 * * * *"
       timezone: "Europe/Kyiv"
   workflow_dispatch:
 
