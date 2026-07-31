@@ -1,6 +1,6 @@
 # TorsionLab — Newtonian Three-Body Simulation
 
-TorsionLab generates a daily GIF animation of three mutually gravitating bodies and can publish it to a Telegram channel. Each run creates random planar initial conditions, integrates the equations of motion, renders trajectories, and optionally sends the animation through the Telegram Bot API.
+TorsionLab generates a daily 1080×1080 H.264 MP4 animation of three mutually gravitating bodies and can publish it to a Telegram channel. Each run creates random planar initial conditions, integrates the equations of motion, renders trajectories, and optionally sends the animation through the Telegram Bot API.
 
 The project is a transparent numerical experiment in **classical Newtonian gravity**, not an orbital prediction service.
 
@@ -96,7 +96,7 @@ $$
 | $G$ | 1 | Normalized gravitational constant |
 | Duration | 30 | Simulation time units |
 | $\Delta t$ | 0.002 | Integrator timestep |
-| Captured frames | 360 | Approximate GIF sampling target |
+| Captured frames | 360 | Approximate MP4 sampling target |
 | Trail length | 100 frames | Recent trajectory drawn for each body |
 
 The integrator runs at the small timestep; only selected states are stored for rendering. The renderer does not alter the physical calculation.
@@ -155,7 +155,7 @@ The model does not include:
 - three-dimensional motion;
 - adaptive timesteps or long-term error analysis.
 
-The GIF is therefore a qualitative numerical visualization under the stated assumptions.
+The MP4 animation is therefore a qualitative numerical visualization under the stated assumptions.
 
 ## Program flow
 
@@ -166,12 +166,12 @@ Newtonian accelerations
         ↓
 velocity-Verlet integration
         ↓
-GIF rendering with positions and recent trails
+MP4 rendering with positions and recent trails
         ↓
 Telegram sendAnimation request (when configured)
 ~~~
 
-The active entry point is **compact_main()** in **main.py**. It generates a valid system, saves **daily_three_body.gif**, builds a caption with masses and initial momenta, and calls the Telegram publisher.
+The active entry point is **compact_main()** in **main.py**. It generates a valid system, saves **daily_three_body.mp4**, builds a scientific caption with masses, momenta, seed, and conservation diagnostics, and calls the Telegram publisher.
 
 ## Installation
 
@@ -192,7 +192,7 @@ Run locally:
 python main.py
 ~~~
 
-The GIF is written beside the script as **daily_three_body.gif**.
+The MP4 video is written beside the script as **daily_three_body.mp4**.
 
 ## Telegram publishing
 
@@ -203,7 +203,7 @@ TELEGRAM_BOT_TOKEN
 TELEGRAM_CHANNEL_ID
 ~~~
 
-The bot must be a channel administrator with permission to post messages. The code calls Telegram's **sendAnimation** endpoint and attaches the GIF as the animation file.
+The bot must be a channel administrator with permission to post messages. The code calls Telegram's **sendAnimation** endpoint and attaches the H.264 MP4 as the animation file. The caption uses Telegram HTML formatting for readable scientific metadata.
 
 Never place a token in source code, commit it to GitHub, or share it in chat. Revoke an exposed token through @BotFather and issue a replacement.
 

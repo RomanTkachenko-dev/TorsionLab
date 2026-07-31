@@ -4,15 +4,15 @@
 # This file has four responsibilities:
 #   1. Create a random Newtonian three-body system.
 #   2. Integrate its motion with the velocity-Verlet method.
-#   3. Render the sampled positions as a GIF animation.
-#   4. Optionally post that GIF to a Telegram channel.
+#   3. Render the sampled positions as a 1080×1080 H.264 MP4 animation.
+#   4. Optionally post that animation to a Telegram channel.
 #
 # Suggested order for a first read:
 #   Simulation              — groups the input data for one experiment.
 #   random_initial_conditions — chooses masses, positions, and velocities.
 #   accelerations           — implements Newtonian gravity.
 #   solve                   — advances the system through time.
-#   compact_render          — creates the Telegram-friendly GIF.
+#   compact_render          — creates the Telegram-friendly MP4 video.
 #   build_caption           — formats masses and initial momenta for Telegram.
 #   compact_main            — the active high-level workflow.
 #
@@ -38,7 +38,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
-from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.animation import FFMpegWriter, FuncAnimation, PillowWriter
 
 
 G = 1.0
@@ -222,7 +222,12 @@ def publish_to_telegram(file_path: Path, caption: str) -> None:
         return
     url = f"https://api.telegram.org/bot{token}/sendAnimation"
     with file_path.open("rb") as animation:
-        response = requests.post(url, data={"chat_id": channel, "caption": caption}, files={"animation": animation}, timeout=60)
+        response = requests.post(
+            url,
+            data={"chat_id": channel, "caption": caption, "parse_mode": "HTML"},
+            files={"animation": animation},
+            timeout=60,
+        )
     response.raise_for_status()
 
 
@@ -246,11 +251,12 @@ def main() -> None:
 
 
 def compact_render(solution: Solution, simulation: Simulation, destination: Path) -> Path:
-    """Render a clean, Telegram-friendly orbit visualization without text panels."""
+    """Render a 1080×1080 H.264 video for sharp Telegram playback."""
     trajectory = solution.positions
     colors = ("#e76f51", "#2a9d8f", "#457b9d")
     limit = max(2.0, float(np.abs(trajectory).max()) * 1.15)
-    fig, ax = plt.subplots(figsize=(8, 8), dpi=140, facecolor="#f8f9fa")
+    # 8 in × 135 dpi = 1080 px on each side.
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=135, facecolor="#f8f9fa")
     fig.subplots_adjust(left=0.12, right=0.96, top=0.965, bottom=0.11)
     ax.set_facecolor("#ffffff")
     ax.set(xlim=(-limit, limit), ylim=(-limit, limit), aspect="equal")
@@ -274,26 +280,36 @@ def compact_render(solution: Solution, simulation: Simulation, destination: Path
         return [*points, *trails, time_label]
 
     animation = FuncAnimation(fig, update, frames=len(trajectory), interval=33, blit=True)
-    animation.save(destination, writer=PillowWriter(fps=30))
+    writer = FFMpegWriter(
+        fps=30,
+        codec="libx264",
+        bitrate=-1,
+        extra_args=["-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p"],
+    )
+    animation.save(destination, writer=writer)
     plt.close(fig)
     return destination
 
 
 def build_caption(simulation: Simulation, report: Diagnostics) -> str:
     """Build a reproducible, compact scientific record for the Telegram post."""
-    masses = "  ".join(f"m{index}={mass:.3f}" for index, mass in enumerate(simulation.masses, start=1))
     momenta = simulation.masses[:, np.newaxis] * simulation.velocities
-    momentum_text = "  ".join(
-        f"p{index}=({momentum[0]:+.3f}, {momentum[1]:+.3f})"
+    mass_text = "  ".join(
+        f"m{index} = {mass:.3f}" for index, mass in enumerate(simulation.masses, start=1)
+    )
+    momentum_lines = "\n".join(
+        f"p{index} = ({momentum[0]:+.3f}, {momentum[1]:+.3f})"
         for index, momentum in enumerate(momenta, start=1)
     )
-    return (f"Torsivane Lab — {datetime.now():%d.%m.%Y}\n"
-            f"Маси: {masses}\n"
-            f"Початкові імпульси: {momentum_text}\n"
-            f"seed={simulation.seed}; method=velocity-Verlet; Δt={simulation.time_step:g}; "
-            f"T={simulation.duration:g}\n"
-            f"max |ΔE/E₀|={report.energy_relative_drift:.2e}; "
-            f"max |ΔL|={report.angular_momentum_absolute_drift:.2e}")
+    return (f"<b>Torsivane Lab</b> · {datetime.now():%d.%m.%Y}\n"
+            f"<pre>{mass_text}\n"
+            f"{momentum_lines}\n\n"
+            f"seed           = {simulation.seed}\n"
+            f"method         = velocity-Verlet\n"
+            f"Δt             = {simulation.time_step:g}\n"
+            f"T              = {simulation.duration:g}\n"
+            f"max |ΔE/E₀|    = {report.energy_relative_drift:.2e}\n"
+            f"max |ΔL|       = {report.angular_momentum_absolute_drift:.2e}</pre>")
 
 
 def validate_two_body_orbit() -> Diagnostics:
@@ -319,7 +335,7 @@ def compact_main() -> None:
             continue
     else:
         raise RuntimeError("Unable to generate a system without a close encounter.")
-    output = Path(__file__).resolve().parent / "daily_three_body.gif"
+    output = Path(__file__).resolve().parent / "daily_three_body.mp4"
     compact_render(trajectory, simulation, output)
     report = diagnostics(trajectory, simulation)
     publish_to_telegram(output, build_caption(simulation, report))
