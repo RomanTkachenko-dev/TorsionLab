@@ -2,9 +2,9 @@ name: Daily TorsionLab simulation
 
 on:
   schedule:
-    # 10:00 UTC is 12:00 in Kyiv during summer time. Adjust this when Kyiv
-    # changes between EEST and EET, because cron schedules use UTC.
-    - cron: "0 10 * * *"
+    # The IANA timezone keeps the intended local time through seasonal changes.
+    - cron: "0 12 * * *"
+      timezone: "Europe/Kyiv"
   workflow_dispatch:
 
 # Lets this workflow write the cumulative dataset to the separate data branch.
